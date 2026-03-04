@@ -72,9 +72,7 @@ app.get('/auth/instagram', (req, res) => {
         'public_profile',
         'instagram_business_basic',
         'instagram_business_manage_messages',
-        'pages_manage_metadata',
-        'pages_read_engagement',
-        'pages_show_list'
+        'pages_manage_metadata'
     ].join(',');
 
     const authUrl = `https://www.facebook.com/v17.0/dialog/oauth?` +
