@@ -72,10 +72,11 @@ app.get('/auth/instagram', (req, res) => {
         'public_profile',
         'instagram_business_basic',
         'instagram_business_manage_messages',
-        'pages_manage_metadata'
+        'pages_manage_metadata',
+        'pages_show_list'
     ].join(',');
 
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+    const authUrl = `https://www.facebook.com/v17.0/dialog/oauth?` +
         `client_id=${APP_ID}&` +
         `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
         `scope=${encodeURIComponent(scope)}&` +
@@ -97,7 +98,7 @@ app.get('/auth/callback', async (req, res) => {
 
     try {
         // 1. Exchange code for access token
-        const tokenRes = await axios.get(`https://graph.facebook.com/v21.0/oauth/access_token`, {
+        const tokenRes = await axios.get(`https://graph.facebook.com/v17.0/oauth/access_token`, {
             params: {
                 client_id: APP_ID,
                 client_secret: APP_SECRET,
@@ -114,7 +115,7 @@ app.get('/auth/callback', async (req, res) => {
         const fbName = userRes.data.name;
 
         // 3. Get Pages and their Instagram accounts
-        const pagesRes = await axios.get(`https://graph.facebook.com/v21.0/me/accounts?access_token=${userAccessToken}`);
+        const pagesRes = await axios.get(`https://graph.facebook.com/v17.0/me/accounts?access_token=${userAccessToken}`);
         const pages = pagesRes.data.data;
 
         if (!pages || pages.length === 0) {
@@ -127,7 +128,7 @@ app.get('/auth/callback', async (req, res) => {
 
         for (const page of pages) {
             try {
-                const igRes = await axios.get(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`);
+                const igRes = await axios.get(`https://graph.facebook.com/v17.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`);
                 if (igRes.data.instagram_business_account) {
                     igId = igRes.data.instagram_business_account.id;
                     pageId = page.id;
@@ -148,7 +149,7 @@ app.get('/auth/callback', async (req, res) => {
         req.session.userId = userId;
 
         // 5. Subscribe App to the Page's Webhooks
-        await axios.post(`https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`, {
+        await axios.post(`https://graph.facebook.com/v17.0/${pageId}/subscribed_apps`, {
             subscribed_fields: ['messages', 'messaging_postbacks'],
             access_token: pageAccessToken
         });
