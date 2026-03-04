@@ -12,15 +12,16 @@ const {
     saveMessage,
     logActivity,
     getLogs
-} = require('./database');
-const { generateReply } = require('./ai_handler');
+} = require('../database');
+const { generateReply } = require('../ai_handler');
 
 const app = express();
 app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, '../views'));
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.use(cookieSession({
     name: 'session',
@@ -217,3 +218,5 @@ app.post('/webhook', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+module.exports = app;

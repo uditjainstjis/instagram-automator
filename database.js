@@ -2,7 +2,8 @@ const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 const path = require('path');
 
-const dbPath = path.resolve(__dirname, 'chat_history.db');
+const isVercel = process.env.VERCEL === '1';
+const dbPath = isVercel ? path.resolve('/tmp', 'chat_history.db') : path.resolve(__dirname, 'chat_history.db');
 
 async function setupDatabase() {
     const db = await open({
