@@ -70,9 +70,10 @@ app.get('/auth/instagram', (req, res) => {
     // Required scopes for Instagram Messaging + Webhook subscription
     const scope = [
         'public_profile',
-        'instagram_basic',
-        'instagram_manage_messages',
+        'instagram_business_basic',
+        'instagram_business_manage_messages',
         'pages_manage_metadata',
+        'pages_read_engagement',
         'pages_show_list'
     ].join(',');
 
