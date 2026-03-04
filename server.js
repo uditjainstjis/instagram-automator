@@ -34,7 +34,10 @@ const PORT = process.env.PORT || 3000;
 const APP_ID = (process.env.APP_ID || '').trim();
 const APP_SECRET = (process.env.APP_SECRET || '').trim();
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-const REDIRECT_URI = (process.env.REDIRECT_URI || `http://localhost:${PORT}/auth/callback`).trim();
+let REDIRECT_URI = (process.env.REDIRECT_URI || `http://localhost:${PORT}/auth/callback`).trim();
+if (REDIRECT_URI.includes('onrender.com') && !REDIRECT_URI.startsWith('http')) {
+    REDIRECT_URI = `https://${REDIRECT_URI}`;
+}
 
 console.log('App Startup Configuration:');
 console.log('- APP_ID:', APP_ID ? 'Set (ends in ...' + APP_ID.slice(-4) + ')' : 'MISSING');
