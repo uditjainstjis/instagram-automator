@@ -70,98 +70,95 @@ app.get('/logout', (req, res) => {
 
 // --- OAuth Flow ---
 app.get('/auth/instagram', (req, res) => {
-    // Required scopes for Instagram Messaging + Webhook subscription
+    // Instagram Business Login scopes — MUST use instagram.com/oauth/authorize endpoint
     const scope = [
-        'public_profile',
         'instagram_business_basic',
         'instagram_business_manage_messages',
-        'pages_manage_metadata'
+        'instagram_business_manage_comments',
+        'instagram_business_content_publish'
     ].join(',');
 
-    const authUrl = `https://www.facebook.com/v17.0/dialog/oauth?` +
+    // Use Instagram's own OAuth endpoint (NOT Facebook's dialog — that does NOT support instagram_business_* scopes)
+    const authUrl = `https://www.instagram.com/oauth/authorize?` +
         `client_id=${APP_ID}&` +
         `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
         `scope=${encodeURIComponent(scope)}&` +
-        `response_type=code`;
+        `response_type=code&` +
+        `enable_fb_login=0`;
 
     console.log('Redirecting to Auth URL:', authUrl);
     res.redirect(authUrl);
 });
 
 app.get('/auth/callback', async (req, res) => {
-    const { code, error } = req.query;
+    const { code, error, error_message } = req.query;
 
     if (error) {
-        console.error('Auth Error:', error);
-        return res.status(400).send(`Authentication error: ${error}`);
+        console.error('Auth Error:', error, error_message);
+        return res.status(400).send(
+            `<h2>Authentication Error</h2><p>${error}</p><p>${error_message || ''}</p><a href="/">Go back</a>`
+        );
     }
 
     if (!code) return res.status(400).send('No authorization code provided');
 
     try {
-        // 1. Exchange code for access token
-        const tokenRes = await axios.get(`https://graph.facebook.com/v17.0/oauth/access_token`, {
+        // 1. Exchange code for a short-lived Instagram User access token
+        //    Uses api.instagram.com (NOT graph.facebook.com) for Instagram Login flow
+        const tokenRes = await axios.post(`https://api.instagram.com/oauth/access_token`, new URLSearchParams({
+            client_id: APP_ID,
+            client_secret: APP_SECRET,
+            grant_type: 'authorization_code',
+            redirect_uri: REDIRECT_URI,
+            code
+        }), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+
+        const shortLivedToken = tokenRes.data.access_token;
+        const igUserId = tokenRes.data.user_id; // Instagram User ID is returned directly
+
+        console.log('Token exchange success. IG User ID:', igUserId);
+
+        // 2. Exchange short-lived token for a long-lived token (valid 60 days)
+        const longLivedRes = await axios.get(`https://graph.instagram.com/access_token`, {
             params: {
-                client_id: APP_ID,
+                grant_type: 'ig_exchange_token',
                 client_secret: APP_SECRET,
-                redirect_uri: REDIRECT_URI,
-                code
+                access_token: shortLivedToken
             }
         });
 
-        const userAccessToken = tokenRes.data.access_token;
+        const userAccessToken = longLivedRes.data.access_token;
 
-        // 2. Get User Info
-        const userRes = await axios.get(`https://graph.facebook.com/me?access_token=${userAccessToken}`);
-        const fbId = userRes.data.id;
-        const fbName = userRes.data.name;
-
-        // 3. Get Pages and their Instagram accounts
-        const pagesRes = await axios.get(`https://graph.facebook.com/v17.0/me/accounts?access_token=${userAccessToken}`);
-        const pages = pagesRes.data.data;
-
-        if (!pages || pages.length === 0) {
-            return res.status(400).send('No Facebook Pages found. Ensure your Instagram account is linked to a Facebook Page or has permissions granted.');
-        }
-
-        let igId = null;
-        let pageId = null;
-        let pageAccessToken = null;
-
-        for (const page of pages) {
-            try {
-                const igRes = await axios.get(`https://graph.facebook.com/v17.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`);
-                if (igRes.data.instagram_business_account) {
-                    igId = igRes.data.instagram_business_account.id;
-                    pageId = page.id;
-                    pageAccessToken = page.access_token;
-                    break;
-                }
-            } catch (e) {
-                console.warn(`Could not fetch IG account for page ${page.id}`);
+        // 3. Get Instagram User Info using Graph API
+        const userRes = await axios.get(`https://graph.instagram.com/v21.0/me`, {
+            params: {
+                fields: 'id,name,username',
+                access_token: userAccessToken
             }
-        }
+        });
 
-        if (!igId) {
-            return res.status(400).send('No linked Instagram Business account found. Go to Instagram -> Settings -> Linked Accounts to connect a Facebook Page.');
-        }
+        const igId = userRes.data.id;
+        const igName = userRes.data.name || userRes.data.username || igId;
 
-        // 4. Save user to DB (SO WE HAVE AN ID FOR LOGGING)
-        const userId = await upsertUser(fbId, fbName, pageAccessToken, pageId, igId);
+        console.log('Instagram user:', igName, '| ID:', igId);
+
+        // 4. Save user to DB — store IG user token as access_token
+        //    pageId is null since we're using Instagram Login (not Facebook Pages)
+        const userId = await upsertUser(igId, igName, userAccessToken, null, igId);
         req.session.userId = userId;
 
-        // 5. Subscribe App to the Page's Webhooks
-        await axios.post(`https://graph.facebook.com/v17.0/${pageId}/subscribed_apps`, {
-            subscribed_fields: ['messages', 'messaging_postbacks'],
-            access_token: pageAccessToken
-        });
-
-        await logActivity(userId, 'info', `Connected Instagram account: ${igId}`);
+        await logActivity(userId, 'info', `Connected Instagram account: @${igName} (${igId})`);
 
         res.redirect('/');
     } catch (error) {
-        console.error('OAuth Callback Error:', error.response ? error.response.data : error.message);
-        res.status(500).send('Authentication failed. Check your App ID and App Secret.');
+        console.error('OAuth Callback Error:', error.response ? JSON.stringify(error.response.data) : error.message);
+        res.status(500).send(
+            `<h2>Authentication Failed</h2>` +
+            `<p>${error.response ? JSON.stringify(error.response.data) : error.message}</p>` +
+            `<a href="/">Go back</a>`
+        );
     }
 });
 
@@ -209,7 +206,7 @@ app.post('/webhook', async (req, res) => {
 
                     // Send reply
                     try {
-                        await axios.post(`https://graph.facebook.com/v12.0/me/messages?access_token=${user.access_token}`, {
+                        await axios.post(`https://graph.instagram.com/v21.0/${user.ig_id}/messages?access_token=${user.access_token}`, {
                             recipient: { id: sender_id },
                             message: { text: replyText }
                         });
