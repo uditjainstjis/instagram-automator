@@ -1,0 +1,5 @@
+node_modules
+.env
+chat_history.db
+.DS_Store
+package-lock.json
