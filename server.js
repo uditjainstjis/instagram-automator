@@ -31,10 +31,14 @@ app.use(cookieSession({
 }));
 
 const PORT = process.env.PORT || 3000;
-const APP_ID = process.env.APP_ID;
-const APP_SECRET = process.env.APP_SECRET;
+const APP_ID = (process.env.APP_ID || '').trim();
+const APP_SECRET = (process.env.APP_SECRET || '').trim();
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-const REDIRECT_URI = process.env.REDIRECT_URI || `http://localhost:${PORT}/auth/callback`;
+const REDIRECT_URI = (process.env.REDIRECT_URI || `http://localhost:${PORT}/auth/callback`).trim();
+
+console.log('App Startup Configuration:');
+console.log('- APP_ID:', APP_ID ? 'Set (ends in ...' + APP_ID.slice(-4) + ')' : 'MISSING');
+console.log('- REDIRECT_URI:', REDIRECT_URI);
 
 // --- Dashboard ---
 app.get('/', async (req, res) => {
@@ -70,7 +74,7 @@ app.get('/auth/instagram', (req, res) => {
         'public_profile'
     ].join(',');
 
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&scope=${scope}`;
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&scope=${scope}&response_type=code`;
     console.log('Redirecting to Auth URL:', authUrl);
     res.redirect(authUrl);
 });
