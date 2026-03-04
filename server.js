@@ -67,14 +67,20 @@ app.get('/logout', (req, res) => {
 
 // --- OAuth Flow ---
 app.get('/auth/instagram', (req, res) => {
-    // Use the refined scopes for 2024/2025
+    // Required scopes for Instagram Messaging + Webhook subscription
     const scope = [
+        'public_profile',
         'instagram_business_basic',
         'instagram_business_manage_messages',
-        'public_profile'
+        'pages_manage_metadata'
     ].join(',');
 
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${APP_ID}&redirect_uri=${REDIRECT_URI}&scope=${scope}&response_type=code`;
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+        `client_id=${APP_ID}&` +
+        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+        `scope=${encodeURIComponent(scope)}&` +
+        `response_type=code`;
+
     console.log('Redirecting to Auth URL:', authUrl);
     res.redirect(authUrl);
 });
